@@ -1,0 +1,8 @@
+Name,Description,DisplayName,Path
+Corp,Corp Parent OU,Corp,"dc=mw,dc=local"
+Accounting,The Accounting OU,Accounting,"ou=corp,dc=mw,dc=local"
+InfoTech,The InfoTech OU,InfoTech,"ou=corp,dc=mw,dc=local"
+Manufacturing,The Manufacturing OU,Manufacturing,"ou=corp,dc=mw,dc=local"
+Developers,The Developers OU,Developers,"ou=corp,dc=mw,dc=local"
+Sales,The Sales OU,Sales,"ou=corp,dc=mw,dc=local"
+Executive,The Executive OU,Executive,"ou=corp,dc=mw,dc=local"
