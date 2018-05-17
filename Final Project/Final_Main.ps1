@@ -50,12 +50,15 @@ function Main () {
 
         
         $computerReport=getInfoComputer
-        $ADReport=getInfoAD
-        writeReportToFile
-        #cleanUpVariables
-      #  clearAllVariables
+        #$ADReport=getInfoAD
+        writeReportToFile("PC")
     }
-    $midterReport
+    #Write out the active directory report.
+    Write-Output "Collecting and Writing AD Report" | Write-Host
+    $outputFilePath="$($OutputDirectory)\Active_Directory-Inv-$($date.Month)-$($date.Day)-$($date.Year)-$($date.Hour)-$($date.Minute)-$($date.Second).txt"
+    $ADReport=getInfoAD
+    writeReportToFile("AD")
+    
 
 }
 
@@ -86,14 +89,25 @@ function getInfoAD () {
     #final info
     [boolean]$ADModulePresent=isADModulePresent
     $ADPath="OU=corp,DC=MW,DC=local"
-    if ( $ADModulePresent -eq $true ) {
+    <#if ( $ADModulePresent -eq $true ) {
         $usersLastLogon=(get-aduser -Filter * -Properties Name,LastLogonDate -SearchBase $ADPath -ErrorAction SilentlyContinue | Select-Object -Property Name,LastLogonDate | sort -Property Name)
         $usersLastPassChange=(get-aduser -Filter * -Properties Name,PasswordLastSet -SearchBase $ADPath -ErrorAction SilentlyContinue | Select-Object -Property Name,PasswordLastSet | sort -Property Name)
     }
     else {
         $usersLastLogon="ActiveDirectory module not found, Active Directory could not be queried"
         $usersLastPassChange="ActiveDirectory module not found, Active Directory could not be queried"
+    }#>
+    $ADGroups = @()
+    $ADOUs = Get-ADOrganizationalUnit -Filter * -SearchBase $ADPath | select Name,DistinguishedName
+    $AllGroups = Get-ADGroup -Filter * -SearchBase $ADPath | Select Name,OU
+    foreach ( $group in $AllGroups) {
+        $ADGroups += New-Object -TypeName psobject -Property @{Group=$group.Name}
+        $groupMembers = Get-ADGroupMember -Identity $group.Name | select Name
+        foreach ( $member in $groupMembers) {
+            $ADGroups += New-Object -TypeName psobject -Property @{Members=$member.Name}
+        }
     }
+    $ADUsers = Get-ADUser -Filter * -SearchBase $ADPath | select SamAccountName,DistinguishedName
 
     #formatReportFinal
     $reportAD=writeReportAD
@@ -152,7 +166,7 @@ function writeReportComputer () {
     Write-Output "$header"
     Write-Output "Currently Installed Software"
     Write-Output "$header"
-    Write-Output $installedSoftware | Format-Table -Property DisplayName,Publisher,DisplayName
+    Write-Output $installedSoftware | Format-Table -Property DisplayName,Publisher,Displayversion
 
     Write-Output ""# | writeOut
     Write-Output "$header"# | writeOut
@@ -199,32 +213,53 @@ function writeReportComputer () {
 function writeReportAD () {
     #Format the new data pulled for the final project
     $header="****************************************"
+    Write-Output "$header"# | writeOut
+    Write-Output "`tReport of Active Directory"# | writeOut
+    Write-Output "$header"# | writeOut
+    Write-Output "Current time is: $((get-date).Hour):$((get-date).Minute):$((get-date).Second)"# | writeOut
+    Write-Output "Report Run By: $runBy"
+    Write-Output "Report Run As: $ENV:UserName"
+    Write-Output ""# | WriteOut
+    Write-Output $header
+    Write-Output "Non-Default OUs in Domain  ($($ADOUs.count))"
+    Write-Output $header
+    Write-Output $ADOUs | Format-Table
+    Write-Output ""
+    Write-Output $header
+    Write-Output "Non-Default Active Directory Security Groups ($($AllGroups.count))"
+    Write-Output $header
+    Write-Output $ADGroups | Format-Table -Property Group,Members
+    Write-Output ""
+    Write-Output $header
+    Write-Output "Non-Default Users in Active Directory ($($ADusers.count))"
+    Write-Output $header
+    Write-Output $ADUsers
+    Write-Output ""
 
-    Write-Output $header
-    Write-Output "Last Logon Date of AD Users"
-    Write-Output $header
-    Write-Output $usersLastLogon | Format-Table
-    Write-Output ""
-    Write-Output $header
-    Write-Output "Last Password Change of AD Users"
-    Write-Output $header
-    Write-Output $usersLastPassChange | Format-Table
-    Write-Output ""
 }
 
-function writeReportToFile () {
+function writeReportToFile ([string]$reportType) {
     #writes all the gathered information to a variable in a decent format
     Write-Output "Clearing Output File" | Write-Host
     $outputFilePath
     Out-File -FilePath $outputFilePath 
 
-
-    write-output "Writing Report" | write-host
-    write-Output $computerReport | writeOut
-    Write-Output $ADReport | writeOut
-    Write-Output "" | writeOut
-    Write-Output "" | writeOut
-    Write-Output "End of File" | writeOut
+    if ( $reportType -eq "PC") {
+        write-output "Writing Report" | write-host
+        write-Output $computerReport | writeOut
+        #Write-Output $ADReport | writeOut
+        Write-Output "" | writeOut
+        Write-Output "" | writeOut
+        Write-Output "End of File" | writeOut
+    }
+    elseif ( $reportType -eq "AD") {
+        write-output "Writing Report" | write-host
+        #write-Output $computerReport | writeOut
+        Write-Output $ADReport | writeOut
+        Write-Output "" | writeOut
+        Write-Output "" | writeOut
+        Write-Output "End of File" | writeOut
+    }
 
 }
 function writeReportOld() {
@@ -418,7 +453,7 @@ function getDisks() {
 function getSoftware() {
     Write-Output "Collecting Installed Software" | write-host
     #Access the Keys in the registry Uninstall folder to get a list of installed software.
-    $software=invoke-command -scriptblock {Get-ItemProperty HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | where { $_.Displayname -ne $null} | select DisplayName,Displayversion,Publisher | Sort-Object -Property DisplayName} -ComputerName $currentIP -Credential $currentCred | select -Property DisplayName,Displayversion,Publisher
+    $software = invoke-command -scriptblock {Get-ItemProperty HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | where { $_.Displayname -ne $null} | select DisplayName,Displayversion,Publisher | Sort-Object -Property DisplayName} -ComputerName $currentIP -Credential $currentCred | select -Property DisplayName,Displayversion,Publisher
     return $software
 }
 
